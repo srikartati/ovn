@@ -37,4 +37,3 @@ rpm-fedora: dist $(srcdir)/rhel/ovn-fedora.spec
 	rpmbuild ${RPMBUILD_OPT} \
                  -D "_topdir ${RPMBUILD_TOP}" \
                  -ba $(srcdir)/rhel/ovn-fedora.spec
-

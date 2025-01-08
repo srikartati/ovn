@@ -1,3 +1,4 @@
 [submodule "ovs"]
 	path = ovs
-	url = https://github.com/openvswitch/ovs.git
+	url = https://gitlab.com/crusoeenergy/infrastructure/sre/third-party/openvswitch.git
+	branch = v3.4.0-crusoe2

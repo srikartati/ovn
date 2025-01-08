@@ -34,8 +34,9 @@ Version: @VERSION@
 Obsoletes: openvswitch-ovn-common < %{?epoch:%{epoch}:}%{version}-%{release}
 Provides: openvswitch-ovn-common = %{?epoch:%{epoch}:}%{version}-%{release}
 
-%define ovsver @OVSVERSION@
-%define ovsdir openvswitch-%{ovsver}
+%define runtimeovspkg @RUNTIME_OVS_PKG@
+%define ovsver @OVS_VERSION@
+%define crusoerel crusoe0
 
 # to skip running checks, pass --without check
 %bcond_without check
@@ -43,9 +44,9 @@ Provides: openvswitch-ovn-common = %{?epoch:%{epoch}:}%{version}-%{release}
 # Nearly all of openvswitch is ASL 2.0.  The bugtool is LGPLv2+, and the
 # lib/sflow*.[ch] files are SISSL
 License: ASL 2.0 and LGPLv2+ and SISSL
-Release: 1%{?dist}
-Source: http://openvswitch.org/releases/ovn-%{version}.tar.gz
-Source10: http://openvswitch.org/releases/openvswitch-%{ovsver}.tar.gz
+Release: 1.%{crusoerel}%{?dist}
+Source: https://gitlab-ci-token:%{ci_job_token}@gitlab.com/crusoeenergy/infrastructure/sre/third-party/ovn/-/archive/@OVN_TAG@/ovn-@VERSION@.tar.gz
+Source10: https://gitlab-ci-token:%{ci_job_token}@gitlab.com/crusoeenergy/infrastructure/sre/third-party/openvswitch/-/archive/@OVS_TAG@/openvswitch-@OVS_VERSION@.tar.gz
 
 BuildRequires: gcc gcc-c++
 BuildRequires: autoconf automake libtool
@@ -67,8 +68,8 @@ BuildRequires: tcpdump
 %endif
 BuildRequires: unbound unbound-devel
 
-Requires: openssl hostname iproute module-init-tools openvswitch
-Requires: python3-openvswitch
+Requires: openssl hostname iproute module-init-tools %{runtimeovspkg}
+Requires: python3-%{runtimeovspkg}
 
 Requires(post): systemd-units
 Requires(preun): systemd-units
@@ -115,7 +116,7 @@ OVN vtep controller
 %package docker
 Summary: Open Virtual Network support
 License: ASL 2.0
-Requires: ovn python3-openvswitch
+Requires: ovn python3-%{runtimeovspkg}
 Obsoletes: openvswitch-ovn-docker
 Provides: openvswitch-ovn-docker = %{?epoch:%{epoch}:}%{version}-%{release}
 
