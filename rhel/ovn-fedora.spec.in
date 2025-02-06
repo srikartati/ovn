@@ -34,9 +34,8 @@ Version: @VERSION@
 Obsoletes: openvswitch-ovn-common < %{?epoch:%{epoch}:}%{version}-%{release}
 Provides: openvswitch-ovn-common = %{?epoch:%{epoch}:}%{version}-%{release}
 
-%define runtimeovspkg @RUNTIME_OVS_PKG@
 %define ovsver @OVS_VERSION@
-%define crusoerel crusoe0
+%define crusoerel crusoe1
 
 # to skip running checks, pass --without check
 %bcond_without check
@@ -68,8 +67,7 @@ BuildRequires: tcpdump
 %endif
 BuildRequires: unbound unbound-devel
 
-Requires: openssl hostname iproute module-init-tools %{runtimeovspkg}
-Requires: python3-%{runtimeovspkg}
+Requires: openssl hostname iproute module-init-tools
 
 Requires(post): systemd-units
 Requires(preun): systemd-units
@@ -116,7 +114,7 @@ OVN vtep controller
 %package docker
 Summary: Open Virtual Network support
 License: ASL 2.0
-Requires: ovn python3-%{runtimeovspkg}
+Requires: ovn
 Obsoletes: openvswitch-ovn-docker
 Provides: openvswitch-ovn-docker = %{?epoch:%{epoch}:}%{version}-%{release}
 
