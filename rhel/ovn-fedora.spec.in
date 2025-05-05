@@ -82,7 +82,7 @@ overlays and security groups.
 %package central
 Summary: Open Virtual Network support
 License: ASL 2.0
-Requires: ovn
+Requires: ovn = %{version}-%{release}
 Requires: firewalld-filesystem
 Obsoletes: openvswitch-ovn-central
 Provides: openvswitch-ovn-central = %{?epoch:%{epoch}:}%{version}-%{release}
@@ -93,7 +93,7 @@ OVN DB servers and ovn-northd running on a central node.
 %package host
 Summary: Open Virtual Network support
 License: ASL 2.0
-Requires: ovn
+Requires: ovn = %{version}-%{release}
 Requires: firewalld-filesystem
 Obsoletes: openvswitch-ovn-host
 Provides: openvswitch-ovn-host = %{?epoch:%{epoch}:}%{version}-%{release}
@@ -104,7 +104,7 @@ OVN controller running on each host.
 %package vtep
 Summary: Open Virtual Network support
 License: ASL 2.0
-Requires: ovn
+Requires: ovn = %{version}-%{release}
 Obsoletes: openvswitch-ovn-vtep
 Provides: openvswitch-ovn-vtep = %{?epoch:%{epoch}:}%{version}-%{release}
 
@@ -114,7 +114,7 @@ OVN vtep controller
 %package docker
 Summary: Open Virtual Network support
 License: ASL 2.0
-Requires: ovn
+Requires: ovn = %{version}-%{release}
 Obsoletes: openvswitch-ovn-docker
 Provides: openvswitch-ovn-docker = %{?epoch:%{epoch}:}%{version}-%{release}
 
