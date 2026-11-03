@@ -1,3 +1,9 @@
+ovn (26.09.1-1.crusoe1) unstable; urgency=low
+   [ Crusoe Team]
+   * Crusoe release based out of upstream release 26.09.1
+
+ -- Crusoe team <sdn@crusoe.ai> Tue, 03 Nov 2026 00:00:00 -0400
+
 ovn (26.09.0-1.crusoe1) unstable; urgency=low
    [ Crusoe Team]
    * Crusoe release based out of upstream release 26.09.0
