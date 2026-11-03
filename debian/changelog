@@ -1,3 +1,10 @@
+ovn (26.09.1-1.crusoe2) unstable; urgency=mid
+   [ Crusoe Team]
+   * Backport binding: Don't leave claimed ports in the postponed set.
+     (SDN-2762, third-party/ovn MR !23)
+
+ -- Crusoe team <sdn@crusoe.ai> Tue, 03 Nov 2026 00:00:00 -0400
+
 ovn (26.09.1-1.crusoe1) unstable; urgency=low
    [ Crusoe Team]
    * Crusoe release based out of upstream release 26.09.1
