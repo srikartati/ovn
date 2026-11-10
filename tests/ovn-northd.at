@@ -17001,35 +17001,34 @@ check ovn-nbctl --wait=sb sync
 
 # Without selection fields the group uses dp_hash.
 ovn-sbctl dump-flows lr0 > lr0flows
-
-AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_ecmp_ids | ovn_strip_lflows], [0], [dnl
-  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = <gid>; reg8[[16..31]] = select(<mid>, <mid>);)
+AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_lflows], [0], [dnl
+  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = 1; reg8[[16..31]] = select(1, 2);)
 ])
 
 check ovn-nbctl --wait=sb set Logical_Router lr0 \
     options:dynamic-routing-ecmp-selection-fields="ip_proto,ip_src,ip_dst"
 ovn-sbctl dump-flows lr0 > lr0flows
-AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_ecmp_ids | ovn_strip_lflows], [0], [dnl
-  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = <gid>; reg8[[16..31]] = select(values=(<mid>, <mid>); hash_fields="ip_dst,ip_proto,ip_src");)
+AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_lflows], [0], [dnl
+  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = 1; reg8[[16..31]] = select(values=(1, 2); hash_fields="ip_dst,ip_proto,ip_src");)
 ])
 
 # tp_src and tp_dst give one flow for each L4 protocol.
 check ovn-nbctl --wait=sb set Logical_Router lr0 \
     options:dynamic-routing-ecmp-selection-fields="ip_src,ip_dst,tp_src,tp_dst"
 ovn-sbctl dump-flows lr0 > lr0flows
-AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_ecmp_ids | ovn_strip_lflows], [0], [dnl
-  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = <gid>; reg8[[16..31]] = select(values=(<mid>, <mid>); hash_fields="ip_dst,ip_proto,ip_src");)
-  table=??(lr_in_ip_routing   ), priority=1839 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24 && sctp), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = <gid>; reg8[[16..31]] = select(values=(<mid>, <mid>); hash_fields="ip_dst,ip_proto,ip_src,sctp_dst,sctp_src");)
-  table=??(lr_in_ip_routing   ), priority=1839 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24 && tcp), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = <gid>; reg8[[16..31]] = select(values=(<mid>, <mid>); hash_fields="ip_dst,ip_proto,ip_src,tcp_dst,tcp_src");)
-  table=??(lr_in_ip_routing   ), priority=1839 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24 && udp), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = <gid>; reg8[[16..31]] = select(values=(<mid>, <mid>); hash_fields="ip_dst,ip_proto,ip_src,udp_dst,udp_src");)
+AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_lflows], [0], [dnl
+  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = 1; reg8[[16..31]] = select(values=(1, 2); hash_fields="ip_dst,ip_proto,ip_src");)
+  table=??(lr_in_ip_routing   ), priority=1839 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24 && sctp), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = 1; reg8[[16..31]] = select(values=(1, 2); hash_fields="ip_dst,ip_proto,ip_src,sctp_dst,sctp_src");)
+  table=??(lr_in_ip_routing   ), priority=1839 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24 && tcp), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = 1; reg8[[16..31]] = select(values=(1, 2); hash_fields="ip_dst,ip_proto,ip_src,tcp_dst,tcp_src");)
+  table=??(lr_in_ip_routing   ), priority=1839 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24 && udp), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = 1; reg8[[16..31]] = select(values=(1, 2); hash_fields="ip_dst,ip_proto,ip_src,udp_dst,udp_src");)
 ])
 
 # A field that is not supported falls back to dp_hash.
 check ovn-nbctl --wait=sb set Logical_Router lr0 \
     options:dynamic-routing-ecmp-selection-fields="ip_src,foo"
 ovn-sbctl dump-flows lr0 > lr0flows
-AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_ecmp_ids | ovn_strip_lflows], [0], [dnl
-  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = <gid>; reg8[[16..31]] = select(<mid>, <mid>);)
+AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_lflows], [0], [dnl
+  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = 1; reg8[[16..31]] = select(1, 2);)
 ])
 check grep -q "bad 'dynamic-routing-ecmp-selection-fields' ip_src,foo" \
     northd/ovn-northd.log
@@ -17037,8 +17036,8 @@ check grep -q "bad 'dynamic-routing-ecmp-selection-fields' ip_src,foo" \
 check ovn-nbctl --wait=sb remove Logical_Router lr0 \
     options dynamic-routing-ecmp-selection-fields
 ovn-sbctl dump-flows lr0 > lr0flows
-AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_ecmp_ids | ovn_strip_lflows], [0], [dnl
-  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = <gid>; reg8[[16..31]] = select(<mid>, <mid>);)
+AT_CHECK([grep -e "(lr_in_ip_routing   ).*192.168.1.0" lr0flows | ovn_strip_lflows], [0], [dnl
+  table=??(lr_in_ip_routing   ), priority=1838 , match=(reg7 == 0 && ip4.dst == 192.168.1.0/24), action=(ip.ttl--; flags.loopback = 1; reg8[[0..15]] = 1; reg8[[16..31]] = select(1, 2);)
 ])
 
 OVN_CLEANUP_NORTHD
