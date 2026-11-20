@@ -255,6 +255,8 @@ update_sb_monitors(struct ovsdb_idl *ovnsb_idl,
      *
      * Monitor Advertised/Learned_Route for local datapaths.
      *
+     * Monitor EVPN_Static_Neighbor for local datapaths.
+     *
      * We always monitor patch ports because they allow us to see the linkages
      * between related logical datapaths.  That way, when we know that we have
      * a VIF on a particular logical switch, we immediately know to monitor all
@@ -275,6 +277,7 @@ update_sb_monitors(struct ovsdb_idl *ovnsb_idl,
     struct ovsdb_idl_condition ar = OVSDB_IDL_CONDITION_INIT(&ar);
     struct ovsdb_idl_condition lr = OVSDB_IDL_CONDITION_INIT(&lr);
     struct ovsdb_idl_condition amb = OVSDB_IDL_CONDITION_INIT(&amb);
+    struct ovsdb_idl_condition esn = OVSDB_IDL_CONDITION_INIT(&esn);
 
     /* Always monitor all logical datapath groups. Otherwise, DPG updates may
      * be received *after* the lflows using it are seen by ovn-controller.
@@ -310,6 +313,7 @@ update_sb_monitors(struct ovsdb_idl *ovnsb_idl,
         ovsdb_idl_condition_add_clause_true(&nh);
         ovsdb_idl_condition_add_clause_true(&ar);
         ovsdb_idl_condition_add_clause_true(&amb);
+        ovsdb_idl_condition_add_clause_true(&esn);
         goto out;
     }
 
@@ -419,6 +423,8 @@ update_sb_monitors(struct ovsdb_idl *ovnsb_idl,
             sbrec_advertised_route_add_clause_datapath(&ar, OVSDB_F_EQ, uuid);
             sbrec_advertised_mac_binding_add_clause_datapath(&amb, OVSDB_F_EQ,
                                                              uuid);
+            sbrec_evpn_static_neighbor_add_clause_datapath(&esn, OVSDB_F_EQ,
+                                                           uuid);
         }
 
         /* Datapath groups are immutable, which means a new group record is
@@ -450,6 +456,7 @@ out:;
         sbrec_advertised_route_set_condition(ovnsb_idl, &ar),
         sbrec_learned_route_set_condition(ovnsb_idl, &lr),
         sbrec_advertised_mac_binding_set_condition(ovnsb_idl, &amb),
+        sbrec_evpn_static_neighbor_set_condition(ovnsb_idl, &esn),
     };
 
     unsigned int expected_cond_seqno = 0;
@@ -473,6 +480,7 @@ out:;
     ovsdb_idl_condition_destroy(&ar);
     ovsdb_idl_condition_destroy(&lr);
     ovsdb_idl_condition_destroy(&amb);
+    ovsdb_idl_condition_destroy(&esn);
     return expected_cond_seqno;
 }
 
@@ -6649,6 +6657,9 @@ struct ed_type_neighbor {
     /* Contains 'struct local_datapath' pointers for datapaths with FDB
      * advertisement enabled. */
     struct hmapx fdb_datapaths;
+    /* SB EVPN_Static_Neighbor entries, see 'struct neighbor_ctx_out'. */
+    struct hmap static_remote_vteps;
+    struct hmap static_fdbs;
 };
 
 static void *
@@ -6662,6 +6673,8 @@ en_neighbor_init(struct engine_node *node OVS_UNUSED,
             VECTOR_EMPTY_INITIALIZER(struct neighbor_interface_monitor *),
         .advertised_pbs = SSET_INITIALIZER(&data->advertised_pbs),
         .fdb_datapaths = HMAPX_INITIALIZER(&data->fdb_datapaths),
+        .static_remote_vteps = HMAP_INITIALIZER(&data->static_remote_vteps),
+        .static_fdbs = HMAP_INITIALIZER(&data->static_fdbs),
     };
     return data;
 }
@@ -6675,6 +6688,10 @@ en_neighbor_cleanup(void *data)
     vector_destroy(&ne_data->monitored_interfaces);
     sset_destroy(&ne_data->advertised_pbs);
     hmapx_destroy(&ne_data->fdb_datapaths);
+    evpn_remote_vteps_clear(&ne_data->static_remote_vteps);
+    evpn_static_entries_clear(&ne_data->static_fdbs);
+    hmap_destroy(&ne_data->static_remote_vteps);
+    hmap_destroy(&ne_data->static_fdbs);
 }
 
 static enum engine_node_state
@@ -6709,6 +6726,10 @@ en_neighbor_run(struct engine_node *node OVS_UNUSED, void *data)
         engine_ovsdb_node_get_index(
             engine_get_input("SB_fdb", node),
             "dp_key");
+    struct ovsdb_idl_index *sbrec_esn_by_dp =
+        engine_ovsdb_node_get_index(
+            engine_get_input("SB_evpn_static_neighbor", node),
+            "datapath");
 
     const char *chassis_id = get_ovs_chassis_id(ovs_table);
     ovs_assert(chassis_id);
@@ -6723,6 +6744,7 @@ en_neighbor_run(struct engine_node *node OVS_UNUSED, void *data)
         .sbrec_pb_by_name = sbrec_port_binding_by_name,
         .sbrec_pb_by_key = sbrec_port_binding_by_key,
         .sbrec_fdb_by_dp_key = sbrec_fdb_by_dp_key,
+        .sbrec_esn_by_dp = sbrec_esn_by_dp,
         .chassis = chassis,
     };
 
@@ -6730,11 +6752,15 @@ en_neighbor_run(struct engine_node *node OVS_UNUSED, void *data)
         .monitored_interfaces = &ne_data->monitored_interfaces,
         .advertised_pbs = &ne_data->advertised_pbs,
         .fdb_datapaths = &ne_data->fdb_datapaths,
+        .static_remote_vteps = &ne_data->static_remote_vteps,
+        .static_fdbs = &ne_data->static_fdbs,
     };
 
     neighbor_cleanup(&ne_data->monitored_interfaces);
     sset_clear(&ne_data->advertised_pbs);
     hmapx_clear(&ne_data->fdb_datapaths);
+    evpn_remote_vteps_clear(&ne_data->static_remote_vteps);
+    evpn_static_entries_clear(&ne_data->static_fdbs);
     neighbor_run(&n_ctx_in, &n_ctx_out);
 
     return EN_UPDATED;
@@ -7156,6 +7182,9 @@ en_neighbor_exchange_run(struct engine_node *node, void *data_)
     };
 
     neighbor_exchange_run(&n_ctx_in, &n_ctx_out);
+    evpn_remote_vteps_merge(&data->remote_vteps,
+                            &neighbor_data->static_remote_vteps);
+    evpn_static_entries_merge(&data->static_fdbs, &neighbor_data->static_fdbs);
     neighbor_table_notify_update(&nt_notify->watches);
     nexthop_exchange_update(nhe_data, NEXTHOP_EXCHANGE_USER_EVPN,
                             !vector_is_empty(&nt_notify->watches));
@@ -7743,6 +7772,7 @@ evpn_mac_binding_sync_sb_port_binding_handler(struct engine_node *node,
     SB_NODE(advertised_route) \
     SB_NODE(learned_route) \
     SB_NODE(advertised_mac_binding) \
+    SB_NODE(evpn_static_neighbor) \
     SB_NODE(service_monitor)
 
 enum sb_engine_node {
@@ -8110,6 +8140,7 @@ inc_proc_ovn_controller_init(
     engine_add_input(&en_neighbor, &en_sb_port_binding,
                      neighbor_sb_port_binding_handler);
     engine_add_input(&en_neighbor, &en_sb_fdb, neighbor_sb_fdb_handler);
+    engine_add_input(&en_neighbor, &en_sb_evpn_static_neighbor, NULL);
     engine_add_input(&en_neighbor_exchange, &en_neighbor, NULL);
     engine_add_input(&en_neighbor_exchange, &en_host_if_monitor, NULL);
     engine_add_input(&en_neighbor_exchange, &en_neighbor_table_notify, NULL);
@@ -8265,6 +8296,11 @@ inc_proc_ovn_controller_init(
                                   &sbrec_advertised_mac_binding_col_datapath);
     engine_ovsdb_node_add_index(&en_sb_advertised_mac_binding, "datapath",
                                 sbrec_advertised_mac_binding_index_by_dp);
+    struct ovsdb_idl_index *sbrec_evpn_static_neighbor_index_by_dp
+        = ovsdb_idl_index_create1(sb_idl_loop->idl,
+                                  &sbrec_evpn_static_neighbor_col_datapath);
+    engine_ovsdb_node_add_index(&en_sb_evpn_static_neighbor, "datapath",
+                                sbrec_evpn_static_neighbor_index_by_dp);
 
     engine_ovsdb_node_add_index(&en_sb_mac_binding, "lport_ip",
                                 sbrec_mac_binding_by_lport_ip);
@@ -8510,6 +8546,8 @@ main(int argc, char *argv[])
                    &sbrec_learned_route_col_external_ids);
     ovsdb_idl_omit(ovnsb_idl_loop.idl,
                    &sbrec_advertised_mac_binding_col_external_ids);
+    ovsdb_idl_omit(ovnsb_idl_loop.idl,
+                   &sbrec_evpn_static_neighbor_col_external_ids);
 
     /* We don't want to monitor Connection table at all. So omit all the
      * columns. */

@@ -48,6 +48,8 @@ struct neighbor_ctx_in {
     struct ovsdb_idl_index *sbrec_pb_by_key;
     /* Index for FDB by dp_key. */
     struct ovsdb_idl_index *sbrec_fdb_by_dp_key;
+    /* Index for EVPN_Static_Neighbor by datapath. */
+    struct ovsdb_idl_index *sbrec_esn_by_dp;
     const struct sbrec_chassis *chassis;
 };
 
@@ -59,6 +61,10 @@ struct neighbor_ctx_out {
     /* Contains 'struct local_datapath' pointers for datapaths with FDB
      * advertisement enabled. */
     struct hmapx *fdb_datapaths;
+    /* Entries from SB EVPN_Static_Neighbor: 'struct evpn_remote_vtep' and
+     * 'struct evpn_static_entry'. */
+    struct hmap *static_remote_vteps;
+    struct hmap *static_fdbs;
 };
 
 enum neighbor_interface_type {

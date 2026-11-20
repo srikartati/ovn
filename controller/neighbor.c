@@ -25,6 +25,7 @@
 #include "ovn-sb-idl.h"
 
 #include "neighbor.h"
+#include "neighbor-exchange.h"
 
 VLOG_DEFINE_THIS_MODULE(neighbor);
 
@@ -59,6 +60,9 @@ static const struct sbrec_port_binding *neighbor_get_relevant_port_binding(
     const struct sbrec_port_binding *);
 static void advertise_neigh_add(struct hmap *neighbors, struct eth_addr mac,
                                 struct in6_addr ip);
+static void neighbor_collect_static_entries(
+    const struct neighbor_ctx_in *, struct neighbor_ctx_out *,
+    const struct sbrec_datapath_binding *, uint32_t vni);
 
 uint32_t
 advertise_neigh_hash(const struct eth_addr *eth, const struct in6_addr *ip)
@@ -113,6 +117,9 @@ neighbor_run(struct neighbor_ctx_in *n_ctx_in,
         if (!ovn_is_valid_vni(vni)) {
             continue;
         }
+
+        neighbor_collect_static_entries(n_ctx_in, n_ctx_out, ld->datapath,
+                                        vni);
 
         if (neighbor_interface_with_vni_exists(n_ctx_out->monitored_interfaces,
                                                vni)) {
@@ -479,4 +486,47 @@ advertise_neigh_add(struct hmap *neighbors, struct eth_addr mac,
     };
 
     hmap_insert(neighbors, &ne->node, advertise_neigh_hash(&mac, &ip));
+}
+
+/* Adds the SB EVPN_Static_Neighbor rows of 'dp' in the same form as the
+ * entries learned from the kernel. */
+static void
+neighbor_collect_static_entries(const struct neighbor_ctx_in *n_ctx_in,
+                                struct neighbor_ctx_out *n_ctx_out,
+                                const struct sbrec_datapath_binding *dp,
+                                uint32_t vni)
+{
+    if (!n_ctx_in->sbrec_esn_by_dp) {
+        return;
+    }
+
+    struct sbrec_evpn_static_neighbor *target =
+        sbrec_evpn_static_neighbor_index_init_row(n_ctx_in->sbrec_esn_by_dp);
+    sbrec_evpn_static_neighbor_index_set_datapath(target, dp);
+
+    const struct sbrec_evpn_static_neighbor *esn;
+    SBREC_EVPN_STATIC_NEIGHBOR_FOR_EACH_EQUAL (esn, target,
+                                               n_ctx_in->sbrec_esn_by_dp) {
+        struct in6_addr vtep_ip;
+        if (!ip46_parse(esn->vtep_ip, &vtep_ip)) {
+            continue;
+        }
+
+        uint16_t port = esn->vtep_port ? *esn->vtep_port : DEFAULT_VXLAN_PORT;
+        if (!evpn_remote_vtep_find(n_ctx_out->static_remote_vteps,
+                                   &vtep_ip, port, vni)) {
+            evpn_remote_vtep_add(n_ctx_out->static_remote_vteps,
+                                 vtep_ip, port, vni);
+        }
+
+        struct eth_addr mac;
+        if (esn->mac && eth_addr_from_string(esn->mac, &mac)
+            && !eth_addr_is_zero(mac)
+            && !evpn_static_entry_find(n_ctx_out->static_fdbs, mac,
+                                       vtep_ip, vni, 0)) {
+            evpn_static_entry_add(n_ctx_out->static_fdbs, mac, vtep_ip,
+                                  vni, 0);
+        }
+    }
+    sbrec_evpn_static_neighbor_index_destroy_row(target);
 }

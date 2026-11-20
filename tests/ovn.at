@@ -48574,6 +48574,95 @@ AT_CLEANUP
 ])
 
 OVN_FOR_EACH_NORTHD([
+AT_SETUP([EVPN static neighbors from the database])
+AT_KEYWORDS([evpn])
+ovn_start
+
+net_add n1
+sim_add hv1
+as hv1
+check ovs-vsctl add-br br-phys
+ovn_attach n1 br-phys 192.168.0.1
+check ovs-vsctl set Open_vSwitch . external-ids:ovn-evpn-vxlan-ports=4789 \
+    -- set Open_vSwitch . external-ids:ovn-evpn-local-ip=169.0.0.1
+
+# An interconnect router between a VM switch and the EVPN switch.
+check ovn-nbctl ls-add ls-vm \
+    -- lsp-add ls-vm vm1 \
+    -- lsp-set-addresses vm1 "00:00:00:00:02:10 10.1.0.10"
+check ovn-nbctl ls-add ls
+check ovn-nbctl lr-add ic \
+    -- lrp-add ic ic-vm 00:00:00:00:01:02 10.1.0.1/24 \
+    -- lrp-add ic ic-evpn 00:00:00:00:01:01 10.0.0.1/24 \
+    -- lsp-add-router-port ls-vm vm-ic ic-vm \
+    -- lsp-add-router-port ls ls-ic ic-evpn
+check ovs-vsctl add-port br-int vm1 -- \
+    set Interface vm1 external_ids:iface-id=vm1
+wait_for_ports_up
+
+# The kernel devices are absent: every entry comes from the database.
+check ovn-nbctl --wait=hv                                                   \
+    -- set logical_switch ls other_config:dynamic-routing-vni=10            \
+    -- set logical_switch ls other_config:dynamic-routing-bridge-ifname=br  \
+    -- set logical_switch ls other_config:dynamic-routing-vxlan-ifname=vx   \
+    -- set logical_switch ls other_config:dynamic-routing-advertise-ifname=lo
+AT_CHECK([ovn-appctl evpn/remote-vtep-list], [0], [])
+
+# Type-5 next hop: router IP 10.0.0.30, router MAC 00:00:00:00:00:30
+# behind VTEP 169.0.0.30.
+check ovn-nbctl lr-route-add ic 172.16.0.0/16 10.0.0.30 ic-evpn
+check_uuid ovn-nbctl create Static_MAC_Binding logical_port=ic-evpn \
+    ip=10.0.0.30 mac='"00:00:00:00:00:30"' override_dynamic_mac=true
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=10 vtep_ip=169.0.0.10
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=10 \
+    mac='"00:00:00:00:00:30"' vtep_ip=169.0.0.30
+# No switch has VNI 20.
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=20 vtep_ip=169.0.0.40
+check ovn-nbctl --wait=hv sync
+
+OVS_WAIT_FOR_OUTPUT([ovn-appctl evpn/remote-vtep-list | sort], [0], [dnl
+IP: 169.0.0.10, port: 4789, vni: 10
+IP: 169.0.0.30, port: 4789, vni: 10
+])
+OVS_WAIT_FOR_OUTPUT([ovn-appctl evpn/vtep-binding-list | wc -l], [0], [2
+])
+OVS_WAIT_FOR_OUTPUT([ovn-appctl evpn/vtep-fdb-list | cut -d',' -f2-3], [0],
+[ MAC: 00:00:00:00:00:30, vni: 10
+])
+# 10.0.0.30 is reg0=0xa00001e.
+OVS_WAIT_UNTIL([ovs-ofctl dump-flows br-int table=OFTABLE_MAC_BINDING | \
+                grep -q "reg0=0xa00001e.*mod_dl_dst:00:00:00:00:00:30"])
+
+ofport=$(ovs-vsctl --bare --columns ofport find Interface name=ovn-evpn-4789)
+vm1=$(ovs-vsctl --bare --columns ofport find Interface name=vm1)
+flow="in_port=$vm1,dl_src=00:00:00:00:02:10,dl_dst=00:00:00:00:01:02"
+flow="$flow,ip,nw_src=10.1.0.10,nw_dst=172.16.0.5,nw_ttl=64"
+OVS_WAIT_UNTIL([ovs-appctl ofproto/trace br-int "$flow" > trace
+                grep -q "output:$ofport" trace])
+# Static_MAC_Binding resolves the next hop, the static FDB picks the VTEP.
+AT_CHECK([grep -q "set_field:00:00:00:00:00:30->eth_dst" trace])
+AT_CHECK([grep -q "set_field:169.0.0.30->tun_dst" trace])
+AT_CHECK([grep -q "set_field:0xa/0xffffff->tun_id" trace])
+
+AS_BOX([Row removal])
+check ovn-nbctl --wait=hv destroy EVPN_Static_Neighbor \
+    $(ovn-nbctl --bare --columns _uuid find EVPN_Static_Neighbor \
+      vtep_ip=169.0.0.30)
+OVS_WAIT_FOR_OUTPUT([ovn-appctl evpn/vtep-fdb-list], [0], [])
+OVS_WAIT_FOR_OUTPUT([ovn-appctl evpn/remote-vtep-list], [0], [dnl
+IP: 169.0.0.10, port: 4789, vni: 10
+])
+
+AS_BOX([VNI removal])
+check ovn-nbctl --wait=hv remove logical_switch ls \
+    other_config dynamic-routing-vni
+OVS_WAIT_FOR_OUTPUT([ovn-appctl evpn/remote-vtep-list], [0], [])
+
+OVN_CLEANUP([hv1])
+AT_CLEANUP
+])
+
+OVN_FOR_EACH_NORTHD([
 AT_SETUP([IPv4 over v6 Neigh solicitation test])
 CHECK_SCAPY
 ovn_start
