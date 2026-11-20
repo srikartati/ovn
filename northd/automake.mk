@@ -56,6 +56,8 @@ northd_ovn_northd_SOURCES = \
 	northd/en-advertised-route-sync.h \
 	northd/en-learned-route-sync.c \
 	northd/en-learned-route-sync.h \
+	northd/en-evpn-static-neighbor-sync.c \
+	northd/en-evpn-static-neighbor-sync.h \
 	northd/en-group-ecmp-route.c \
 	northd/en-group-ecmp-route.h \
 	northd/inc-proc-northd.c \

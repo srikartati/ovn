@@ -991,6 +991,10 @@ main(int argc, char *argv[])
         ovsdb_idl_omit_alert(ovnsb_idl_loop.idl,
                              &sbrec_advertised_mac_binding_columns[i]);
     }
+    for (size_t i = 0; i < SBREC_EVPN_STATIC_NEIGHBOR_N_COLUMNS; i++) {
+        ovsdb_idl_omit_alert(ovnsb_idl_loop.idl,
+                             &sbrec_evpn_static_neighbor_columns[i]);
+    }
     for (size_t i = 0; i < SBREC_DNS_N_COLUMNS; i++) {
         ovsdb_idl_omit_alert(ovnsb_idl_loop.idl, &sbrec_dns_columns[i]);
     }

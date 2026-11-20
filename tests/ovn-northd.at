@@ -24134,6 +24134,90 @@ AT_CLEANUP
 ])
 
 OVN_FOR_EACH_NORTHD_NO_HV([
+AT_SETUP([LS EVPN static neighbor sync])
+AT_KEYWORDS([evpn])
+ovn_start
+
+esn_list() {
+    ovn-sbctl --bare --columns datapath,mac,vtep_ip,vtep_port \
+        --format=csv --no-headings list EVPN_Static_Neighbor | LC_ALL=C sort
+}
+
+check ovn-nbctl ls-add ls-evpn \
+    -- set logical_switch ls-evpn other_config:dynamic-routing-vni=10
+check ovn-nbctl --wait=sb sync
+dp10=$(fetch_column Datapath_Binding _uuid external_ids:name=ls-evpn)
+
+AS_BOX([Valid and invalid rows])
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=10 vtep_ip=192.0.2.10
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=10 \
+    mac='"00:00:00:00:00:AA"' \
+    vtep_ip=192.0.2.20 vtep_port=4790
+# Same entry once normalized.
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=10 \
+    mac='"00:00:00:00:00:aa"' \
+    vtep_ip=192.0.2.20 vtep_port=4790
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=10 \
+    vtep_ip='"2001:DB8::0001"'
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=20 vtep_ip=192.0.2.30
+# Invalid: no VTEP, bad VTEP IP, bad MAC.
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=10 \
+    mac='"00:00:00:00:00:01"'
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=10 vtep_ip=foo
+check_uuid ovn-nbctl create EVPN_Static_Neighbor vni=10 \
+    mac='"00:00:00:00:00:00"' vtep_ip=192.0.2.40
+check ovn-nbctl --wait=sb sync
+
+AT_CHECK_UNQUOTED([esn_list], [0], [dnl
+$dp10,,192.0.2.10,
+$dp10,,2001:db8::1,
+$dp10,00:00:00:00:00:aa,192.0.2.20,4790
+])
+
+AS_BOX([Second switch picks up its VNI])
+check ovn-nbctl --wait=sb ls-add ls-evpn2 \
+    -- set logical_switch ls-evpn2 other_config:dynamic-routing-vni=20
+dp20=$(fetch_column Datapath_Binding _uuid external_ids:name=ls-evpn2)
+check_row_count EVPN_Static_Neighbor 1 datapath=$dp20 vtep_ip=192.0.2.30
+check_row_count EVPN_Static_Neighbor 4
+
+AS_BOX([A VNI on two switches is ambiguous])
+check ovn-nbctl --wait=sb ls-add ls-evpn3 \
+    -- set logical_switch ls-evpn3 other_config:dynamic-routing-vni=20
+check_row_count EVPN_Static_Neighbor 0 datapath=$dp20
+check_row_count EVPN_Static_Neighbor 3
+check ovn-nbctl --wait=sb ls-del ls-evpn3
+check_row_count EVPN_Static_Neighbor 1 datapath=$dp20
+check_row_count EVPN_Static_Neighbor 4
+
+AS_BOX([VNI change and removal])
+check ovn-nbctl --wait=sb set logical_switch ls-evpn \
+    other_config:dynamic-routing-vni=20
+check ovn-nbctl --wait=sb remove logical_switch ls-evpn2 \
+    other_config dynamic-routing-vni
+dp_new=$(fetch_column Datapath_Binding _uuid external_ids:name=ls-evpn)
+check_row_count EVPN_Static_Neighbor 1
+check_row_count EVPN_Static_Neighbor 1 datapath=$dp_new vtep_ip=192.0.2.30
+
+check ovn-nbctl --wait=sb ls-del ls-evpn
+check_row_count EVPN_Static_Neighbor 0
+
+AS_BOX([NB row removal])
+check ovn-nbctl --wait=sb ls-add ls-evpn4 \
+    -- set logical_switch ls-evpn4 other_config:dynamic-routing-vni=10
+check_row_count EVPN_Static_Neighbor 3
+check ovn-nbctl --wait=sb destroy EVPN_Static_Neighbor \
+    $(ovn-nbctl --bare --columns _uuid find EVPN_Static_Neighbor \
+      vtep_ip=192.0.2.10)
+check_row_count EVPN_Static_Neighbor 2
+check ovn-nbctl --wait=sb --all destroy EVPN_Static_Neighbor
+check_row_count EVPN_Static_Neighbor 0
+
+OVN_CLEANUP_NORTHD
+AT_CLEANUP
+])
+
+OVN_FOR_EACH_NORTHD_NO_HV([
 AT_SETUP([LR EVPN Advertised_MAC_Binding sync for distributed NAT])
 ovn_start
 

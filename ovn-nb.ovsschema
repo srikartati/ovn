@@ -1,7 +1,7 @@
 {
     "name": "OVN_Northbound",
-    "version": "7.19.0",
-    "cksum": "2631744256 45474",
+    "version": "7.20.0",
+    "cksum": "216872685 46340",
     "tables": {
         "NB_Global": {
             "columns": {
@@ -886,6 +886,22 @@
             },
             "indexes": [["type"]],
             "isRoot": true
-        }
+        },
+        "EVPN_Static_Neighbor": {
+            "columns": {
+                "vni": {"type": {"key": {"type": "integer",
+                                         "minInteger": 0,
+                                         "maxInteger": 16777215}}},
+                "mac": {"type": {"key": "string", "min": 0, "max": 1}},
+                "vtep_ip": {"type": "string"},
+                "vtep_port": {"type": {"key": {"type": "integer",
+                                               "minInteger": 1,
+                                               "maxInteger": 65535},
+                                       "min": 0, "max": 1}},
+                "external_ids": {
+                    "type": {"key": "string", "value": "string",
+                             "min": 0, "max": "unlimited"}}},
+            "indexes": [["vni", "mac", "vtep_ip"]],
+            "isRoot": true}
     }
 }

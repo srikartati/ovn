@@ -5873,4 +5873,35 @@ tcp.flags = RST;
       See <em>External IDs</em> at the beginning of this document.
     </column>
   </table>
+
+  <table name="EVPN_Static_Neighbor" title="static EVPN neighbor">
+    <p>
+      <code>ovn-northd</code> populates this table from the northbound
+      <ref db="OVN_Northbound" table="EVPN_Static_Neighbor"/> table, one row
+      for each valid northbound row, on the datapath of the logical switch
+      with that VNI.  <code>ovn-controller</code> merges the rows of its
+      local datapaths with the remote VTEPs and FDB entries it learns from
+      the kernel.
+    </p>
+
+    <column name="datapath">
+      The logical switch datapath the entry belongs to.
+    </column>
+
+    <column name="mac">
+      The Ethernet address of the remote workload or router.
+    </column>
+
+    <column name="vtep_ip">
+      The IPv4 or IPv6 address of the remote VTEP.
+    </column>
+
+    <column name="vtep_port">
+      The UDP destination port of the remote VTEP.
+    </column>
+
+    <column name="external_ids">
+      See <em>External IDs</em> at the beginning of this document.
+    </column>
+  </table>
 </database>

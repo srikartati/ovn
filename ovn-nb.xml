@@ -6958,6 +6958,62 @@ or
     </group>
   </table>
 
+  <table name="EVPN_Static_Neighbor" title="static EVPN neighbor">
+    <p>
+      Each row is a remote EVPN entry for the logical switch whose
+      <ref table="Logical_Switch" column="other_config"
+      key="dynamic-routing-vni"/> equals <ref column="vni"/>.  The rows
+      have the same effect as the entries that <code>ovn-controller</code>
+      learns from the kernel neighbor tables of the switch's EVPN devices,
+      and the two sources are merged.  A CMS can use this table instead of
+      programming the kernel, for example to supply the router MAC and VTEP
+      of an EVPN Type-5 next hop.
+    </p>
+
+    <p>
+      A row gives the remote VTEP <ref column="vtep_ip"/>, and with
+      <ref column="mac"/> also an FDB entry that sends <ref column="mac"/>
+      to that VTEP.  An address that resolves to <ref column="mac"/>, for
+      example the next hop of a static route to the Type-5 router MAC,
+      goes in the <ref table="Static_MAC_Binding"/> table on the logical
+      router port that connects to the switch, with
+      <ref table="Static_MAC_Binding" column="override_dynamic_mac"/> set
+      if the kernel may also learn the address.  Those bindings do not
+      feed the switch's EVPN ARP/ND suppression, which still uses only
+      the entries learned from the kernel.
+    </p>
+
+    <p>
+      <code>ovn-northd</code> ignores a row with an invalid address, and
+      a row whose <ref column="vni"/> matches no logical switch or more
+      than one.
+    </p>
+
+    <column name="vni">
+      The VNI of the logical switch the entry belongs to.
+    </column>
+
+    <column name="mac">
+      The Ethernet address of the remote workload or router.  Optional.
+    </column>
+
+    <column name="vtep_ip">
+      The IPv4 or IPv6 address of the remote VTEP.
+    </column>
+
+    <column name="vtep_port">
+      The UDP destination port of the remote VTEP.  The default is 4789.
+      It must match one of the ports in the chassis'
+      <code>ovn-evpn-vxlan-ports</code>.
+    </column>
+
+    <group title="Common Columns">
+      <column name="external_ids">
+        See <em>External IDs</em> at the beginning of this document.
+      </column>
+    </group>
+  </table>
+
   <table name="Network_Function_Group"
    title="network function group">
     <p>

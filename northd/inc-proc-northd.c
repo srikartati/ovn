@@ -47,6 +47,7 @@
 #include "en-acl-ids.h"
 #include "en-advertised-route-sync.h"
 #include "en-learned-route-sync.h"
+#include "en-evpn-static-neighbor-sync.h"
 #include "en-group-ecmp-route.h"
 #include "en-datapath-logical-router.h"
 #include "en-datapath-logical-switch.h"
@@ -78,7 +79,8 @@ static unixctl_cb_func chassis_features_list;
     NB_NODE(network_function) \
     NB_NODE(network_function_group) \
     NB_NODE(logical_switch_port_health_check) \
-    NB_NODE(logical_router_static_route)
+    NB_NODE(logical_router_static_route) \
+    NB_NODE(evpn_static_neighbor)
 
     enum nb_engine_node {
 #define NB_NODE(NAME) NB_##NAME,
@@ -124,7 +126,8 @@ static unixctl_cb_func chassis_features_list;
     SB_NODE(acl_id) \
     SB_NODE(advertised_route) \
     SB_NODE(learned_route) \
-    SB_NODE(advertised_mac_binding)
+    SB_NODE(advertised_mac_binding) \
+    SB_NODE(evpn_static_neighbor)
 
 enum sb_engine_node {
 #define SB_NODE(NAME) SB_##NAME,
@@ -188,6 +191,7 @@ static ENGINE_NODE(multicast_igmp, SB_WRITE);
 static ENGINE_NODE(acl_id, SB_WRITE);
 static ENGINE_NODE(advertised_route_sync, SB_WRITE);
 static ENGINE_NODE(advertised_mac_binding_sync, SB_WRITE);
+static ENGINE_NODE(evpn_static_neighbor_sync, SB_WRITE);
 static ENGINE_NODE(learned_route_sync, CLEAR_TRACKED_DATA, SB_WRITE);
 static ENGINE_NODE(dynamic_routes);
 static ENGINE_NODE(group_ecmp_route, CLEAR_TRACKED_DATA);
@@ -376,6 +380,14 @@ void inc_proc_northd_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_advertised_mac_binding_sync, &en_lr_nat,
                      engine_noop_handler);
 
+    engine_add_input(&en_evpn_static_neighbor_sync,
+                     &en_nb_evpn_static_neighbor, NULL);
+    engine_add_input(&en_evpn_static_neighbor_sync,
+                     &en_sb_evpn_static_neighbor, NULL);
+    engine_add_input(&en_evpn_static_neighbor_sync,
+                     &en_datapath_synced_logical_switch,
+                     evpn_static_neighbor_sync_logical_switch_handler);
+
     engine_add_input(&en_learned_route_sync, &en_sb_learned_route,
                      learned_route_sync_sb_learned_route_change_handler);
     engine_add_input(&en_learned_route_sync, &en_northd,
@@ -522,6 +534,8 @@ void inc_proc_northd_init(struct ovsdb_idl_loop *nb,
                      northd_output_advertised_route_sync_handler);
     engine_add_input(&en_northd_output, &en_advertised_mac_binding_sync,
                      northd_output_advertised_mac_binding_sync_handler);
+    engine_add_input(&en_northd_output, &en_evpn_static_neighbor_sync,
+                     northd_output_evpn_static_neighbor_sync_handler);
 
     struct engine_arg engine_arg = {
         .nb_idl = nb->idl,

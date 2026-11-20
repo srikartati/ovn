@@ -78,6 +78,10 @@ Post v26.09.0
      sure that the replies re-enter the router on the chassis that load
      balanced the request.  See ovn-nb(5).
    - Drop OSX support, there will be no further testing of OVN build on OSX.
+   - Added the EVPN_Static_Neighbor table to the Northbound and Southbound
+     databases.  Its rows give EVPN remote VTEPs and FDB entries for a
+     logical switch with "other_config:dynamic-routing-vni", in addition
+     to the entries ovn-controller learns from the kernel.
 
 OVN v26.09.0 - xxx xx xxxx
 --------------------------
