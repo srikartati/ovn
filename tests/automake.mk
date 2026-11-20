@@ -294,6 +294,7 @@ if HAVE_NETLINK
 tests_ovstest_SOURCES += \
 	controller/host-if-monitor.c \
 	controller/host-if-monitor.h \
+	controller/neighbor-exchange-common.c \
 	controller/neighbor-exchange-netlink.c \
 	controller/neighbor-exchange-netlink.h \
 	controller/nexthop-exchange.c \

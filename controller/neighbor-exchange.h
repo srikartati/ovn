@@ -72,5 +72,17 @@ void evpn_remote_vteps_clear(struct hmap *remote_vteps);
 void evpn_remote_vtep_list(struct unixctl_conn *, int argc,
                            const char *argv[], void *data_);
 void evpn_static_entries_clear(struct hmap *static_entries);
+void evpn_remote_vteps_merge(struct hmap *dst, const struct hmap *src);
+void evpn_static_entries_merge(struct hmap *dst, const struct hmap *src);
+void evpn_remote_vtep_add(struct hmap *remote_vteps, struct in6_addr ip,
+                          uint16_t port, uint32_t vni);
+struct evpn_remote_vtep *evpn_remote_vtep_find(
+    const struct hmap *remote_vteps, const struct in6_addr *ip,
+    uint16_t port, uint32_t vni);
+void evpn_static_entry_add(struct hmap *static_entries, struct eth_addr mac,
+                           struct in6_addr ip, uint32_t vni, uint32_t nh_id);
+struct evpn_static_entry *evpn_static_entry_find(
+    const struct hmap *static_entries, struct eth_addr mac,
+    struct in6_addr ip, uint32_t vni, uint32_t nh_id);
 
 #endif  /* NEIGHBOR_EXCHANGE_H */

@@ -71,6 +71,7 @@ controller_ovn_controller_SOURCES = \
 	controller/garp_rarp.h \
 	controller/garp_rarp.c \
 	controller/neighbor-exchange.h \
+	controller/neighbor-exchange-common.c \
 	controller/host-if-monitor.h
 
 if HAVE_NETLINK
